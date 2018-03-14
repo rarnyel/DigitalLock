@@ -55,33 +55,28 @@ RESET	CODE	0x0000
     bcf	    STATUS,5
     
 locked:
-    movlw   0x13
+    movlw   B'00000000'
     movwf   num
-    movlw   B'10001111'
-    movwf   PORTB
-    call    doesitwork
+    call    buttoncheckL
     movlw   B'00001100'
-    subwf   num
+    subwf   num,0
     btfsc   STATUS,Z
     call    unlocking
-    movlw   B'10001111'
-    movwf   PORTB
-    movlw   0x13
-    movwf   num
-    call    doesitwork
     movlw   B'00001011'
-    subwf   num
+    subwf   num,0
     btfsc   STATUS,Z
     call    unlock
     goto    locked
     
 unlocking:
-    call    delay
-    goto    buttoncheck
-    movlw   num
-    subwf   passcode1
+    call    buttoncheck1
+    movfw   passcode1
+    subwf   num,0
     btfsc   STATUS,Z
     call    unlock
+    movlw   B'00000000'
+    movwf   num
+    call    delay
     return
 
 unlock:
@@ -90,15 +85,31 @@ unlock:
     call    delay_5sec
     return
     
-buttoncheck:
+buttoncheckL:
+    movlw   B'10001111'
+    movwf   PORTB
+    call    delay
     movlw   B'00000000'
     movwf   num
     call    doesitwork
     movlw   B'11111111'
-    andwf   num
+    andwf   num,0
     btfsc   STATUS,Z
-    goto    buttoncheck
+    goto    buttoncheckL
     return
+    
+buttoncheck1:
+    movlw   B'01111111'
+    movwf   PORTB
+    call    delay
+    movlw   B'00000000'
+    movwf   num
+    call    doesitwork
+    movlw   B'11111111'
+    andwf   num,0
+    btfsc   STATUS,Z
+    goto    buttoncheck1
+    return  
 	    
 doesitwork:
     movlw   B'00000010'

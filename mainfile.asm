@@ -1,9 +1,10 @@
 #include P16F84A.INC    
     __config _XT_OSC & _WDT_OFF & _PWRTE_ON
-;###############################################################################
-;Interupt
 
-    
+;###############################################################################
+;
+; ToDo List:
+;
 ;###############################################################################
 
 master1	    EQU 0x21
@@ -45,7 +46,6 @@ RESET	CODE	0x0000
     movwf	passcode4
 	    
 ;###############################################################################  
- 
 	
     bsf	    STATUS,5
 	movlw	B'00000000'
@@ -54,63 +54,159 @@ RESET	CODE	0x0000
 	movwf	TRISA
     bcf	    STATUS,5
     
-locked:
+locked:				; Locked loop
     movlw   B'00000000'
     movwf   num
-    call    buttoncheckL
+    call    buttoncheckL	; Checks whether hash has been pressed
     movlw   B'00001100'
     subwf   num,0
     btfsc   STATUS,Z
-    call    unlocking
+    call    unlocking		; If hash has been pressed, go to unlocking
     movlw   B'00001011'
     subwf   num,0
     btfsc   STATUS,Z
     call    unlock
     goto    locked
     
-unlocking:
-    call    buttoncheck1
-    movfw   passcode1
+unlocking:			; Unlocking loop
+    call    buttoncheck1	; Basically adapt in the other buttoncheckX subroutines
+    movfw   test1
+    subwf   num,0
+    btfsc   STATUS,Z		; Ideally it doesn't move beyond this point until first button pressed
+    goto    unlocking		; Also ideally it doesn't use gotos but I'm not sure how else you'd do it
+    call    buttoncheck2
+    movfw   test2		; Repeating this bit for all the button checks
     subwf   num,0
     btfsc   STATUS,Z
-    call    unlock
+    goto    unlocking
+    call    buttoncheck3
+    movfw   test3
+    subwf   num,0
+    btfsc   STATUS,Z
+    goto    unlocking
+    call    buttoncheck4
+    movfw   test4
+    subwf   num,0
+    btfsc   STATUS,Z
+    goto    unlocking
+    call    unlockcheck
     movlw   B'00000000'
     movwf   num
     call    delay
     return
 
-unlock:
+unlock:				; Subroutine for actual unlock
     movlw   B'11000111'
     movwf   PORTB
     call    delay_5sec
     return
+
+unlockcheck:
+    movfw   passcode1		; Moves actual digit to working register
+    subwf   test1,0		; Subtracts saved corresponding digit from actual digit
+    btsfc   STATUS,Z		; If they're the same (ie: correct) it will skip return
+    call    locked		; If they're not, it locks and the whole thing starts from the beginning
+    movfw   passcode2		; Repeats for the other digits
+    subwf   test2,0
+    btsfc   STATUS,Z
+    call    locked
+    movfw   passcode3
+    subwf   test3,0
+    btsfc   STATUS,Z
+    call    locked
+    movwf   passcode4
+    subwf   test4
+    btsfc   STATUS,Z
+    call    locked
+    call    unlock		; Moved from unlocking loop so that it only gets called once all number checked
+    return			; Don't think this return actually needs to be here but convention and that
     
-buttoncheckL:
-    movlw   B'10001111'
+buttoncheckL:			; Checks to start unlocking loop
+    movlw   B'10001111'		; Displays L for locked
     movwf   PORTB
     call    delay
-    movlw   B'00000000'
+    movlw   B'00000000'		; Clears num
     movwf   num
-    call    doesitwork
-    movlw   B'11111111'
+    call    doesitwork		; Checks to see what button is pressed
+    movlw   B'11111111'		; Can't figure out what this line DOES
     andwf   num,0
     btfsc   STATUS,Z
     goto    buttoncheckL
     return
-    
-buttoncheck1:
-    movlw   B'01111111'
+
+buttoncheckmaster:
+    movlw   B'10001111'		; Should display something to signify master
     movwf   PORTB
     call    delay
     movlw   B'00000000'
     movwf   num
     call    doesitwork
-    movlw   B'11111111'
+    movlw   B'11111111'		; Probably need to change tbh
     andwf   num,0
+    btfsc   STATUS,Z
+    goto    buttoncheckmaster
+    return
+    
+buttoncheck1:			; Subroutine for checking first button
+    movlw   B'01111111'
+    movwf   PORTB
+    call    delay
+    movlw   B'00000000'
+    movwf   test1		; I dunno if these two lines are needed anymore
+    call    doesitwork
+    movfw   num
+    movwf   test1
+    movlw   B'11111111'
+    andwf   test1,0
     btfsc   STATUS,Z
     goto    buttoncheck1
     return  
-	    
+
+buttoncheck2:			; Subroutine for checking second button
+    movlw   B'01111111'		;	NEEDS to be edited, as do others
+    movwf   PORTB
+    call    delay
+    movlw   B'00000000'
+    movwf   test2
+    call    doesitwork
+    movfw   num
+    movwf   test2
+    movlw   B'11111111'
+    andwf   test2,0
+    btfsc   STATUS,Z
+    goto    buttoncheck1
+    return  
+
+buttoncheck3:
+    movlw   B'01111111'
+    movwf   PORTB
+    call    delay
+    movlw   B'00000000'
+    movwf   test3
+    call    doesitwork
+    movfw   num
+    movwf   test3  
+    movlw   B'11111111'
+    andwf   test3,0
+    btfsc   STATUS,Z
+    goto    buttoncheck1
+    return  
+
+buttoncheck4:
+    movlw   B'01111111'
+    movwf   PORTB
+    call    delay
+    movlw   B'00000000'
+    movwf   test4
+    call    doesitwork
+    movfw   num
+    movwf   test4
+    movlw   B'11111111'
+    andwf   test4,0
+    btfsc   STATUS,Z
+    goto    buttoncheck1
+    return  
+
 doesitwork:
     movlw   B'00000010'
     movwf   PORTB
@@ -157,96 +253,72 @@ column3:
     return
     
 one:
-    movlw   B'11110011'
-    movwf   PORTB
     call    delay
     movlw   B'00000001'
     movwf   num
     return
     
 two:
-    movlw   B'01001001'
-    movwf   PORTB
     call    delay
     movlw   B'00000010'
     movwf   num
     return
     
 three:
-    movlw   B'01100001'
-    movwf   PORTB
     call    delay
     movlw   B'00000011'
     movwf   num
     return
     
 four:
-    movlw   B'00110011'
-    movwf   PORTB
     call    delay
     movlw   B'00000100'
     movwf   num
     return
     
 five:
-    movlw   B'00100101'
-    movwf   PORTB
     call    delay
     movlw   B'00000101'
     movwf   num
     return
     
 six:
-    movlw   B'00000101'
-    movwf   PORTB
     call    delay
     movlw   B'00000110'
     movwf   num
     return
     
 seven:
-    movlw   B'11110001'
-    movwf   PORTB
     call    delay
     movlw   B'00000111'
     movwf   num
     return
     
 eight:
-    movlw   B'00000001'
-    movwf   PORTB
     call    delay
     movlw   B'00001000'
     movwf   num
     return
     
 nine:
-    movlw   B'00110001'
-    movwf   PORTB
     call    delay
     movlw   B'00001001'
     movwf   num
     return
     
 zero:
-    movlw   B'10000001'
-    movwf   PORTB
     call    delay
     movlw   B'00001010'
     movwf   num
     return
     
 star:
-    movlw   B'00011111'
-    movwf   PORTB
     call    delay
     movlw   B'00001011'
     movwf   num
     return
     
 hash:
-    movlw   B'00010011'
-    movwf   PORTB
     call    delay
     movlw   B'00001100'
     movwf   num
@@ -280,5 +352,4 @@ delay_loop5:
     goto    delay_loop5
     return
     
-    
-    end
+end

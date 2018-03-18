@@ -1,0 +1,14 @@
+Basic funcionality:
+/	1. On power up, digital lock is locked and displays L
+-	2. #1234 unlocks the digital lock, indicated by U on the display
+/	3. After 5 seconds, it relocks, displaying L
+-	4. *4321 inputs master code, inputting code #3579 twice will change code
+	5. Display S for set, display N for not set
+
+Advanced functionality:
+	1. When unlocked, U should flash at 2Hz
+/	2. Pattern of segments illuminated when each button is pressed
+	3. When new passcode is set, print 'SEt' or 'nOt' respectively, wait and lock
+	4. Buzzer when button is pressed
+	5. Save the new code to EEPROM
+	6. Lockout after 3 incorrect tries for 20 seconds

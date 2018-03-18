@@ -23,6 +23,12 @@ delay0	    EQU 0x2D
 delay1	    EQU 0x2E
 delay2	    EQU 0x2F
 num	    EQU 0x30
+newcode1    EQU	0x31
+newcode2    EQU 0x32
+newcode3    EQU 0x33
+newcode4    EQU 0x34
+un	    EQU	0x35
+lockout	    EQU	0x36
 	   
 ;###############################################################################
 	    
@@ -36,13 +42,13 @@ RESET	CODE	0x0000
     movwf	master3
     movlw	0x01
     movwf	master4
-    movlw	0x01
+    movlw	B'00000001'
     movwf	passcode1
-    movlw	0x02
+    movlw	B'00000010'
     movwf	passcode2
-    movlw	0x03
+    movlw	B'00000011'
     movwf	passcode3
-    movlw	0x04
+    movlw	B'00000100'
     movwf	passcode4
 	    
 ;###############################################################################  
@@ -65,61 +71,191 @@ locked:				; Locked loop
     movlw   B'00001011'
     subwf   num,0
     btfsc   STATUS,Z
-    call    unlock
+    call    mastering
     goto    locked
     
 unlocking:			; Unlocking loop
     call    buttoncheck1	; Basically adapt in the other buttoncheckX subroutines
-    movfw   test1
-    subwf   num,0
-    btfsc   STATUS,Z		; Ideally it doesn't move beyond this point until first button pressed
-    goto    unlocking		; Also ideally it doesn't use gotos but I'm not sure how else you'd do it
+    movfw   num
+    movwf   test1		; Also ideally it doesn't use gotos but I'm not sure how else you'd do it
     call    buttoncheck2
-    movfw   test2		; Repeating this bit for all the button checks
-    subwf   num,0
-    btfsc   STATUS,Z
-    goto    unlocking
+    movfw   num
+    movwf   test2		; Repeating this bit for all the button checks
     call    buttoncheck3
-    movfw   test3
-    subwf   num,0
-    btfsc   STATUS,Z
-    goto    unlocking
+    movfw   num
+    movwf   test3
     call    buttoncheck4
-    movfw   test4
-    subwf   num,0
-    btfsc   STATUS,Z
-    goto    unlocking
+    movfw   num
+    movwf   test4
     call    unlockcheck
     movlw   B'00000000'
     movwf   num
-    call    delay
     return
+    
+mastering:			
+    call    buttoncheck1	
+    movfw   num
+    movwf   test1		
+    call    buttoncheck2
+    movfw   num
+    movwf   test2		
+    call    buttoncheck3
+    movfw   num
+    movwf   test3
+    call    buttoncheck4
+    movfw   num
+    movwf   test4
+    call    mastercheck
+    movlw   B'00000000'
+    movwf   num
+    call    buttoncheckmaster	; Checks whether hash has been pressed
+    movlw   B'00001100'
+    subwf   num,0
+    btfss   STATUS,Z
+    goto    not			; If hash has not been pressed, go to locked
+    call    buttoncheck1	
+    movfw   num
+    movwf   newcode1		
+    call    buttoncheck2
+    movfw   num
+    movwf   newcode2		
+    call    buttoncheck3
+    movfw   num
+    movwf   newcode3
+    call    buttoncheck4
+    movfw   num
+    movwf   newcode4
+    movlw   B'00000000'
+    movwf   num
+    call    buttoncheckmaster	; Checks whether hash has been pressed
+    movlw   B'00001100'
+    subwf   num,0
+    btfss   STATUS,Z
+    goto    not		; If hash has not been pressed, go to locked
+    call    buttoncheck1	
+    movfw   num
+    movwf   test1		
+    call    buttoncheck2
+    movfw   num
+    movwf   test2		
+    call    buttoncheck3
+    movfw   num
+    movwf   test3
+    call    buttoncheck4
+    movfw   num
+    movwf   test4
+    call    testcheck
+    movlw   B'00000000'
+    movwf   num
+    return    
 
-unlock:				; Subroutine for actual unlock
+unlock:			; Subroutine for actual unlock
+    movlw   B'00000011'
+    movwf   lockout
+    movlw   B'00001010'
+    movwf   un
+unlocklooop:
     movlw   B'11000111'
     movwf   PORTB
-    call    delay_5sec
+    call    delay_0.25sec
+    movlw   B'11111111'
+    movwf   PORTB
+    call    delay_0.25sec
+    decfsz  un,F
+    goto    unlocklooop
+    return
+    
+not:
+    movlw   B'01010111'
+    movwf   PORTB
+    call    delay_1sec
+    movlw   B'10000001'
+    movwf   PORTB
+    call    delay_1sec
+    movlw   B'00001111'
+    movwf   PORTB
+    call    delay_1sec
+    goto    locked
+    return
+    
+s_et:
+    movlw   B'00100101'
+    movwf   PORTB
+    call    delay_1sec
+    movlw   B'00001101'
+    movwf   PORTB
+    call    delay_1sec
+    movlw   B'00001111'
+    movwf   PORTB
+    call    delay_1sec
     return
 
 unlockcheck:
     movfw   passcode1		; Moves actual digit to working register
     subwf   test1,0		; Subtracts saved corresponding digit from actual digit
-    btsfc   STATUS,Z		; If they're the same (ie: correct) it will skip return
-    call    locked		; If they're not, it locks and the whole thing starts from the beginning
+    btfss   STATUS,Z		; If they're the same (ie: correct) it will skip return
+    goto    locked		; If they're not, it locks and the whole thing starts from the beginning
     movfw   passcode2		; Repeats for the other digits
     subwf   test2,0
-    btsfc   STATUS,Z
-    call    locked
+    btfss   STATUS,Z
+    goto    locked
     movfw   passcode3
     subwf   test3,0
-    btsfc   STATUS,Z
-    call    locked
-    movwf   passcode4
-    subwf   test4
-    btsfc   STATUS,Z
-    call    locked
+    btfss   STATUS,Z
+    goto    locked
+    movfw   passcode4
+    subwf   test4,0
+    btfss   STATUS,Z
+    goto    locked
     call    unlock		; Moved from unlocking loop so that it only gets called once all number checked
-    return			; Don't think this return actually needs to be here but convention and that
+    return
+    
+mastercheck:
+    movfw   master1		; Moves actual digit to working register
+    subwf   test1,0		; Subtracts saved corresponding digit from actual digit
+    btfss   STATUS,Z		; If they're the same (ie: correct) it will skip return
+    goto    not		; If they're not, it locks and the whole thing starts from the beginning
+    movfw   master2		; Repeats for the other digits
+    subwf   test2,0
+    btfss   STATUS,Z
+    goto    not
+    movfw   master3
+    subwf   test3,0
+    btfss   STATUS,Z
+    goto    not
+    movfw   master4
+    subwf   test4,0
+    btfss   STATUS,Z
+    goto    not
+    return
+    
+testcheck:
+    movfw   newcode1		; Moves actual digit to working register
+    subwf   test1,0		; Subtracts saved corresponding digit from actual digit
+    btfss   STATUS,Z		; If they're the same (ie: correct) it will skip return
+    goto    not			; If they're not, it locks and the whole thing starts from the beginning
+    movfw   newcode2		; Repeats for the other digits
+    subwf   test2,0
+    btfss   STATUS,Z
+    goto    not
+    movfw   newcode3
+    subwf   test3,0
+    btfss   STATUS,Z
+    goto    not
+    movfw   newcode4
+    subwf   test4,0
+    btfss   STATUS,Z
+    goto    not
+    movfw   newcode1
+    movwf   passcode1		
+    movfw   newcode2
+    movwf   passcode2		
+    movfw   newcode3
+    movwf   passcode3		
+    movfw   newcode4
+    movwf   passcode4
+    call    s_et
+    return
     
 buttoncheckL:			; Checks to start unlocking loop
     movlw   B'10001111'		; Displays L for locked
@@ -135,7 +271,7 @@ buttoncheckL:			; Checks to start unlocking loop
     return
 
 buttoncheckmaster:
-    movlw   B'10001111'		; Should display something to signify master
+    movlw   B'10001101'		; Should display something to signify master
     movwf   PORTB
     call    delay
     movlw   B'00000000'
@@ -152,59 +288,51 @@ buttoncheck1:			; Subroutine for checking first button
     movwf   PORTB
     call    delay
     movlw   B'00000000'
-    movwf   test1		; I dunno if these two lines are needed anymore
+    movwf   num		; I dunno if these two lines are needed anymore
     call    doesitwork
-    movfw   num
-    movwf   test1
     movlw   B'11111111'
-    andwf   test1,0
+    andwf   num,0
     btfsc   STATUS,Z
     goto    buttoncheck1
     return  
 
 buttoncheck2:			; Subroutine for checking second button
-    movlw   B'01111111'		;	NEEDS to be edited, as do others
+    movlw   B'00111111'		;	NEEDS to be edited, as do others
     movwf   PORTB
     call    delay
     movlw   B'00000000'
-    movwf   test2
+    movwf   num
     call    doesitwork
-    movfw   num
-    movwf   test2
     movlw   B'11111111'
-    andwf   test2,0
+    andwf   num,0
     btfsc   STATUS,Z
-    goto    buttoncheck1
+    goto    buttoncheck2
     return  
 
 buttoncheck3:
-    movlw   B'01111111'
+    movlw   B'00111101'
     movwf   PORTB
     call    delay
     movlw   B'00000000'
-    movwf   test3
-    call    doesitwork
-    movfw   num
-    movwf   test3  
+    movwf   num
+    call    doesitwork 
     movlw   B'11111111'
-    andwf   test3,0
+    andwf   num,0
     btfsc   STATUS,Z
-    goto    buttoncheck1
+    goto    buttoncheck3
     return  
 
 buttoncheck4:
-    movlw   B'01111111'
+    movlw   B'00111001'
     movwf   PORTB
     call    delay
     movlw   B'00000000'
-    movwf   test4
+    movwf   num
     call    doesitwork
-    movfw   num
-    movwf   test4
     movlw   B'11111111'
-    andwf   test4,0
+    andwf   num,0
     btfsc   STATUS,Z
-    goto    buttoncheck1
+    goto    buttoncheck4
     return  
 
 doesitwork:
@@ -336,12 +464,12 @@ delay_loop:
     goto    delay_loop
     return
     
-delay_5sec:
+delay_0.25sec:
     movlw   H'FF'
     movwf   delay0
-    movlw   H'FF'
+    movlw   H'52'
     movwf   delay1 
-    movlw   H'10'
+    movlw   H'02'
     movwf   delay2
 delay_loop5:
     decfsz  delay0,F
@@ -352,4 +480,36 @@ delay_loop5:
     goto    delay_loop5
     return
     
-end
+delay_1sec:
+    movlw   H'FF'
+    movwf   delay0
+    movlw   H'FF'
+    movwf   delay1 
+    movlw   H'02'
+    movwf   delay2
+delay_loop1:
+    decfsz  delay0,F
+    goto    delay_loop1
+    decfsz  delay1,F
+    goto    delay_loop1
+    decfsz  delay2,F
+    goto    delay_loop1
+    return
+    
+delay_20sec:
+    movlw   H'FF'
+    movwf   delay0
+    movlw   H'FF'
+    movwf   delay1 
+    movlw   H'34'
+    movwf   delay2
+delay_loop20:
+    decfsz  delay0,F
+    goto    delay_loop20
+    decfsz  delay1,F
+    goto    delay_loop20
+    decfsz  delay2,F
+    goto    delay_loop20
+    return
+    
+    end
